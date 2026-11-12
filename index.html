@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Simulasi 3D Mesin Kapal Tunda</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#dfe9ec;--pn:#f6fafbf0;--fg:#0f2830;--mu:#547079;--ac:#0b7285;--wr:#c2410c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0b1a20;--pn:#12262df0;--fg:#e3eff2;--mu:#8fa9b2;--ac:#3cc4d6;--wr:#fb923c}}
+:root[data-theme=dark]{--bg:#0b1a20;--pn:#12262df0;--fg:#e3eff2;--mu:#8fa9b2;--ac:#3cc4d6;--wr:#fb923c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font:500 14px/1.35 "Barlow Semi Condensed",system-ui,-apple-system,"Segoe UI",sans-serif}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#hud{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:6px;right:6px;display:flex;overflow-x:auto;background:var(--pn);border-radius:10px;padding:4px 0}
+.ch{flex:none;min-width:84px;padding:0 10px;text-align:center;border-left:1px solid color-mix(in srgb,var(--mu) 40%,transparent)}
+.ch:first-child{border:0}.ch b{display:block;font-size:17px;font-weight:600;white-space:nowrap}.ch small{color:var(--mu);font-size:11px;white-space:nowrap}
+#al{position:fixed;left:8px;right:8px;top:calc(env(safe-area-inset-top,0px) + 62px);display:none;background:var(--wr);color:var(--bg);padding:5px 10px;border-radius:8px;font-weight:600}
+#lb div{position:fixed;transform:translate(-50%,-100%);background:var(--pn);padding:1px 6px;border-radius:5px;font-size:11px;pointer-events:none;white-space:nowrap}
+#pn{position:fixed;left:0;right:0;bottom:0;max-height:42vh;overflow:auto;background:var(--pn);backdrop-filter:blur(8px);border-radius:14px 14px 0 0;padding:8px 12px calc(10px + env(safe-area-inset-bottom,0px))}
+.r{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+.r>span{color:var(--mu);min-width:62px}
+.b{font:inherit;color:var(--fg);background:transparent;border:1px solid var(--mu);border-radius:7px;padding:5px 10px}
+.b.on{background:var(--ac);border-color:var(--ac);color:var(--bg)}
+label{display:flex;justify-content:space-between;color:var(--mu)}label b{color:var(--fg)}
+input[type=range]{width:100%;accent-color:var(--ac);margin:2px 0 6px}
+#inf{color:var(--mu);margin-top:4px}#bd[hidden]{display:none}
+</style></head><body>
+<canvas id="c"></canvas><div id="hud"></div><div id="al"></div><div id="lb"></div>
+<div id="pn">
+<div class="r"><button class="b" id="bP">Mesin kiri (PORT)</button><button class="b" id="bS">Mesin kanan (STBD)</button><button class="b" id="bA">Mesin bantu</button><button class="b" id="bt" style="margin-left:auto">▾</button></div>
+<div id="bd">
+<div class="r"><span>Gearbox</span><button class="b g" data-g="0">Netral</button><button class="b g on" data-g="1">Maju</button><button class="b g" data-g="-1">Mundur</button><select class="b" id="rt"><option value="3">3:1</option><option value="4.5">4,5:1</option><option value="6" selected>6:1</option><option value="7.5">7,5:1</option></select></div>
+<div class="r"><span>Propulsi</span><button class="b m on" data-m="k">Konvensional</button><button class="b m" data-m="a">Azimutal</button></div>
+<label>Throttle <b id="othr"></b></label><input type="range" id="thr" min="0" max="100" value="0">
+<label>Sudut azimut (mode azimutal) <b id="oaz"></b></label><input type="range" id="az" min="-180" max="180" value="0" disabled>
+<label>Debit pompa pendingin <b id="opm"></b></label><input type="range" id="pm" min="0" max="100" value="80">
+<label>Beban listrik kapal <b id="old"></b></label><input type="range" id="ld" min="0" max="150" value="40">
+<label>Kecepatan animasi, gerak lambat ke nyata <b id="osp"></b></label><input type="range" id="sp" min="1" max="100" value="10">
+<div class="r"><span>Tampilan</span><button class="b on" id="bh">Lambung</button><button class="b on" id="bl">Label</button><button class="b" data-c="i">Miring</button><button class="b" data-c="s">Samping</button><button class="b" data-c="t">Atas</button><button class="b" data-c="r">Belakang</button><button class="b" data-c="e">Ruang mesin</button><button class="b" id="rf">Isi BBM</button></div>
+<div class="r" id="pl"><span>Komponen</span></div><div id="inf">Ketuk salah satu komponen untuk menyorot dan membaca penjelasannya. Mulai dengan menyalakan mesin, lalu naikkan throttle.</div>
+</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],T=THREE,PI=Math.PI,cl=(x,a,b)=>Math.min(b,Math.max(a,x)),V=(x,y,z)=>new T.Vector3(x,y,z);
+const R=new T.WebGLRenderer({canvas:$('#c'),antialias:true,alpha:true});R.setPixelRatio(Math.min(devicePixelRatio,2));
+const S=new T.Scene(),C=new T.PerspectiveCamera(45,1,.1,400),OC=new T.OrbitControls(C,$('#c'));OC.enableDamping=true;
+S.add(new T.HemisphereLight(0xffffff,0x556677,1));const dl=new T.DirectionalLight(0xffffff,.8);dl.position.set(-8,22,12);S.add(dl);
+const M=(c,o)=>new T.MeshStandardMaterial(Object.assign({color:c,metalness:.4,roughness:.5},o)),G={},reg=(n,o)=>{(G[n]=G[n]||[]).push(o);return o},
+cx=(r,l,m,s)=>new T.Mesh(new T.CylinderGeometry(r,r,l,s||20).rotateZ(PI/2),m),Y=V(0,1,0);
+function link(m,a,b){const d=b.clone().sub(a);m.position.copy(a).add(b).multiplyScalar(.5);m.scale.y=d.length();m.quaternion.setFromUnitVectors(Y,d.normalize())}
+// lambung, air
+const hs=new T.Shape();hs.moveTo(-12,-3.8);hs.lineTo(4,-4.4);hs.quadraticCurveTo(11,-3.4,13,0);hs.quadraticCurveTo(11,3.4,4,4.4);hs.lineTo(-12,3.8);hs.closePath();
+const hg=new T.ExtrudeGeometry(hs,{depth:4.5,bevelEnabled:false});hg.rotateX(-PI/2);
+const hull=new T.Group();hull.add(new T.Mesh(hg,M(0x4a90c2,{transparent:true,opacity:.14,depthWrite:false,side:2})),new T.LineSegments(new T.EdgesGeometry(hg),new T.LineBasicMaterial({color:0x6fb1e0})));S.add(hull);
+const sea=new T.Group(),grid=new T.GridHelper(200,100,0x4aa3df,0x4aa3df);grid.material.transparent=true;grid.material.opacity=.28;sea.add(grid);S.add(sea);
+// mesin diesel: piston, batang, poros engkol
+function mkEng(n,sc){const g=new T.Group(),L=n*1.2+.8,ph=(n==6?[0,4,2,2,4,0]:[0,2,4]).map(a=>a*PI/3),cyl=[];
+ const cc=new T.Mesh(new T.BoxGeometry(L,.9,1.5),M(0x2f6fb0,{transparent:true,opacity:.4,depthWrite:false})),hd=new T.Mesh(new T.BoxGeometry(L-.4,.5,1.3),M(0x2e8b57)),cs=cx(.1,L+.4,M(0xbbbbbb),12);
+ cc.position.y=.1;hd.position.y=2.15;cs.position.y=.1;g.add(cc,hd,cs);
+ for(let i=0;i<n;i++){const x=(i-(n-1)/2)*1.2,
+  ln=new T.Mesh(new T.CylinderGeometry(.5,.5,1.4,20,1,true),M(0x99ddff,{transparent:true,opacity:.28,side:2,depthWrite:false,emissive:0xff6a00,emissiveIntensity:0})),
+  pi=new T.Mesh(new T.CylinderGeometry(.45,.45,.35,20),M(0xe0e0e0)),rod=new T.Mesh(new T.CylinderGeometry(.06,.06,1,8),M(0xaaaaaa)),web=new T.Group(),wm=new T.Mesh(new T.BoxGeometry(.14,.28,.14),M(0xff5533));
+  ln.position.set(x,1.25,0);wm.position.y=.14;web.add(wm);web.position.set(x,.1,0);pi.position.x=x;g.add(ln,pi,rod,web);cyl.push({x,ln,pi,rod,web})}
+ g.scale.setScalar(sc);return{g,cyl,cs,ph}}
+function upd(e,th,pw){e.cs.rotation.x=th;e.cyl.forEach((c,i)=>{const p=th+e.ph[i],s=Math.sin(p),yp=.1+.28*Math.cos(p)+Math.sqrt(1-.0784*s*s),al=((p%(4*PI))+4*PI)%(4*PI),g=al>2*PI&&al<3*PI?1-(al-2*PI)/PI:0;
+ c.pi.position.y=yp+.15;c.web.rotation.x=p;link(c.rod,V(c.x,.1+.28*Math.cos(p),.28*s),V(c.x,yp,0));c.ln.material.emissiveIntensity=g*pw*2.2})}
+function mkProp(r){const g=new T.Group(),m=M(0xd9a441,{metalness:.7,roughness:.3});g.add(cx(.18,.5,m,16));
+ for(let k=0;k<4;k++){const b=new T.Group(),bl=new T.Mesh(new T.BoxGeometry(.06,r,.34),m);bl.position.y=r/2+.1;bl.rotation.y=.55;b.add(bl);b.rotation.x=k*PI/2;g.add(b)}return g}
+function mkFlow(pts,col,closed){const cv=new T.CatmullRomCurve3(pts.map(p=>V(...p)),closed,'catmullrom',.05),
+ tube=new T.Mesh(new T.TubeGeometry(cv,80,.07,6,closed),M(col,{transparent:true,opacity:.35})),N=22,pos=new Float32Array(N*3),pg=new T.BufferGeometry();
+ pg.setAttribute('position',new T.BufferAttribute(pos,3));const pt=new T.Points(pg,new T.PointsMaterial({color:col,size:.24}));pt.frustumCulled=false;S.add(tube,pt);
+ return{cv,pt,pos,N,t:0,m:pt.material,tm:tube.material,tube}}
+const E=[],SH=[],PR=[],AZ=[],AR=[];
+[-1,1].forEach((s,i)=>{const z=s*2.2,e=mkEng(6,1);e.g.position.set(-1.9,.9,z);S.add(e.g);reg('main',e.g);E.push(e);
+ e.fw=cx(.6,.25,M(0x888888));e.fw.position.set(-6.15,1,z);S.add(e.fw);
+ const gb=new T.Group();gb.position.set(-7.4,1,z);gb.add(new T.Mesh(new T.BoxGeometry(1.8,1.6,1.8),M(0x7a8794,{transparent:true,opacity:.28,depthWrite:false})));
+ e.gi=cx(.3,.5,M(0xe8b04a,{flatShading:true}),12);e.go=cx(.5,.5,M(0xcf8a2e,{flatShading:true}),20);e.gi.position.z=-.4;e.go.position.z=.4;gb.add(e.gi,e.go);S.add(gb);reg('gear',gb);
+ const sh=cx(.12,1,M(0xbfc5cc,{metalness:.8}),12),sk=new T.Mesh(new T.BoxGeometry(1,.05,.05),M(0xff6a00));sk.position.y=.12;sh.add(sk);sh.position.set(-10.3,1,z);S.add(sh);reg('shaft',sh);SH.push(sh);
+ const p=mkProp(1.1);p.position.set(-12.3,1,z);S.add(p);reg('prop',p);PR.push(p);
+ const a=new T.Group(),mt=M(0x8f9aa6),bv=new T.Mesh(new T.BoxGeometry(.7,.7,.7),mt),vs=new T.Mesh(new T.CylinderGeometry(.13,.13,2.9,12),M(0xbfc5cc)),vk=new T.Mesh(new T.BoxGeometry(.04,1,.04),M(0xff6a00)),
+  pod=cx(.32,1.9,mt),nz=new T.Mesh(new T.TorusGeometry(.95,.13,10,28).rotateY(PI/2),mt),ap=mkProp(.85);
+ a.position.set(-10.6,0,z);bv.position.y=1;vs.position.y=-.45;vk.position.x=.13;vs.add(vk);pod.position.y=-1.9;nz.position.set(-1.15,-1.9,0);ap.position.set(-1.15,-1.9,0);
+ a.add(bv,vs,pod,nz,ap);S.add(a);reg('azi',a);AZ.push(a);AR.push(ap);
+ e.ar=new T.ArrowHelper(V(1,0,0),V(0,0,0),3,0xffd60a,.8,.5);S.add(e.ar);
+ e.fl=[mkFlow([[3,.1,0],[3,.8,0],[3,.8,s*1.35],[-6,.8,s*1.35],[-6,.8,s*3.9]],0x33aaff),mkFlow([[9.2,1.3,0],[9.2,1.3,s*1.1],[-5.6,1.4,s*1.05]],0xffc21a),mkFlow([[-5,.95,s*3.1],[2,.95,s*3.1],[2,1.55,s*2.7],[-5,1.55,s*2.7]],0x3ddc84,true)];
+ reg('cool',e.fl[0].tube);reg('fuel',e.fl[1].tube);reg('fuel',e.fl[2].tube);
+ Object.assign(e,{on:0,rpm:0,ang:0,pa:0,T:30,P:0,F:0,pr:0,trip:0,oil:0,lph:0,az:0,fx:0,fz:0})});
+const cp=new T.Mesh(new T.CylinderGeometry(.3,.3,.5,16),M(0x2f9cf0)),sc=new T.Mesh(new T.BoxGeometry(.8,.2,.8),M(0x2f9cf0));cp.position.set(3,.45,0);sc.position.set(3,.05,0);S.add(cp,sc);reg('cool',cp);reg('cool',sc);
+const tk=new T.Mesh(new T.BoxGeometry(2,1.9,2.2),M(0xffc21a,{transparent:true,opacity:.18,depthWrite:false})),fl=new T.Mesh(new T.BoxGeometry(1.9,1,2.1),M(0xffb300,{transparent:true,opacity:.75}));
+tk.position.set(10,1.1,0);fl.position.x=10;S.add(tk,fl);reg('fuel',tk);
+const ax=mkEng(3,.62);ax.g.position.set(5.3,.55,0);S.add(ax.g);reg('aux',ax.g);
+const gn=cx(.5,1.3,M(0x3fb06a,{emissive:0x22ff66,emissiveIntensity:0}),24);gn.position.set(7.6,.62,0);S.add(gn);reg('aux',gn);
+// label
+const LB=[['Mesin utama',-1.9,3.5,-2.2],['Gearbox',-7.4,2.2,-2.2],['Poros',-10.4,1.4,2.2,'k'],['Baling-baling',-12.3,2.3,2.2,'k'],['Unit azimutal',-10.6,1.8,-2.2,'a'],['Pompa pendingin',3,.9,0],['Mesin bantu',5.3,1.8,0],['Generator',7.6,1.3,0],['Tangki BBM',10,2.4,0]];
+LB.forEach(l=>{l.v=V(l[1],l[2],l[3]);l.e=document.createElement('div');l.e.textContent=l[0];$('#lb').appendChild(l.e)});
+// UI
+const st={m:'k',g:1,r:6,thr:0,az:0,pm:80,ld:40,sp:10,fuel:8000,v:0,w:0,psi:0,x:0,z:0,aux:0,ar:0,ag:0};let showLb=1,HB=[];
+[['rpm','RPM mesin'],['prm','RPM baling-baling'],['pw','Daya kW'],['tq','Torsi kN.m'],['th','Dorong kN'],['kn','Kecepatan knot'],['hd','Haluan derajat'],['tc','Suhu pendingin C'],['op','Tekanan oli bar'],['fu','BBM liter'],['el','Listrik']].forEach(([i,t])=>$('#hud').insertAdjacentHTML('beforeend',`<div class="ch"><b id="h_${i}">0</b><small>${t}</small></div>`));
+[['thr','%'],['az','°'],['pm','%'],['ld',' kW'],['sp','%']].forEach(([k,u])=>{const el=$('#'+k);el.oninput=()=>{st[k]=+el.value;$('#o'+k).textContent=el.value+u};el.oninput()});
+const PT=[['main','Mesin utama','Mesin utama (main engine): umumnya mesin diesel yang menghasilkan tenaga mekanis. Lihat piston naik-turun, poros engkol berputar, dan nyala pembakaran di tiap silinder.'],
+['gear','Gearbox','Gearbox atau reduction gear: menyesuaikan putaran dan menyalurkan tenaga dari mesin ke sistem propulsi. Coba ubah rasio: terlalu rendah membebani mesin, terlalu tinggi membuat daya tak terserap penuh.'],
+['shaft','Poros','Poros baling-baling (propeller shaft): meneruskan tenaga menuju baling-baling pada sistem konvensional.'],
+['prop','Baling-baling','Baling-baling (propeller): menghasilkan gaya dorong untuk menggerakkan kapal. Panah kuning menunjukkan arah dan besar gaya dorong.'],
+['cool','Pendingin','Sistem pendingin: menjaga temperatur mesin agar tetap dalam batas operasi. Air laut (biru) masuk lewat kotak laut dan pompa, warnanya menghangat bila suhu naik. Kecilkan debit pompa untuk melihat mesin overheat.'],
+['fuel','BBM dan oli','Sistem bahan bakar (kuning) memasok solar dari tangki, sedangkan sistem pelumasan (hijau) mengurangi gesekan komponen mesin.'],
+['aux','Mesin bantu','Mesin bantu (auxiliary engine): menggerakkan generator untuk memenuhi kebutuhan listrik kapal. Atur beban listrik dan lihat putarannya.'],
+['azi','Azimutal','Sistem azimutal: unit propulsi dapat berputar untuk mengubah arah gaya dorong. Pilih mode Azimutal lalu geser sudut azimut.']];
+PT.forEach(([k,n,d])=>{const b=document.createElement('button');b.className='b';b.textContent=n;b.onclick=()=>{HB.forEach(h=>S.remove(h));HB=(G[k]||[]).map(o=>{const h=new T.BoxHelper(o,0xffd60a);h.o=o;S.add(h);return h});$('#inf').textContent=d;$$('#pl .b').forEach(c=>c.classList.toggle('on',c===b))};$('#pl').appendChild(b)});
+[['#bP',0],['#bS',1]].forEach(([id,i])=>$(id).onclick=()=>{const e=E[i];if(e.on)e.on=0;else if(e.T<95&&st.fuel>0){e.on=1;e.trip=0}});
+$('#bA').onclick=()=>{st.aux=!st.aux&&st.fuel>0?1:0};
+$$('.g').forEach(b=>b.onclick=()=>{st.g=+b.dataset.g;$$('.g').forEach(x=>x.classList.toggle('on',x===b))});
+$('#rt').onchange=e=>st.r=+e.target.value;
+function mode(m){st.m=m;PR.forEach(p=>p.visible=m=='k');AZ.forEach(a=>a.visible=m=='a');const L=m=='k'?4:2.3;SH.forEach(s=>{s.scale.x=L;s.position.x=-8.3-L/2});$$('.m').forEach(b=>b.classList.toggle('on',b.dataset.m==m));$('#az').disabled=m!='a'}
+$$('.m').forEach(b=>b.onclick=()=>mode(b.dataset.m));
+$('#bh').onclick=e=>{hull.visible=!hull.visible;e.target.classList.toggle('on',hull.visible)};$('#bl').onclick=e=>{showLb=!showLb;e.target.classList.toggle('on',!!showLb)};
+$('#rf').onclick=()=>st.fuel=8000;$('#bt').onclick=()=>{const b=$('#bd');b.hidden=!b.hidden;$('#bt').textContent=b.hidden?'▴':'▾'};
+const kz=Math.max(1,1.15*innerHeight/innerWidth),CP={i:[-14,13,17,-1,0,0],s:[-1,5,24,-1,0,0],t:[-1,32,.1,-1,0,0],r:[-30,9,0,-8,1.5,0],e:[-11,10,11,-4,1.5,0]};
+function cam(n){const c=CP[n],t=V(c[3],c[4]-2.5,c[5]);C.position.copy(V(c[0],c[1],c[2]).sub(V(c[3],c[4],c[5])).multiplyScalar(kz).add(t));OC.target.copy(t)}
+$$('[data-c]').forEach(b=>b.onclick=()=>cam(b.dataset.c));
+function rs(){const w=innerWidth,h=innerHeight;R.setSize(w,h,false);C.aspect=w/h;C.updateProjectionMatrix()}addEventListener('resize',rs);
+// simulasi fisika
+function sim(dt){const vis=st.sp/100*.08,r=st.r,sg=st.g,Pm=1600,ae=st.m=='a',rx=ae?-10.6:-12.3,al=[],mx=sg?Math.min(1800,Math.sqrt((300*r)**3/1800)):1800;let Fx=0,tau=0,lph=0;
+ E.forEach((e,i)=>{const nm=i?'STBD':'PORT',z=i?2.2:-2.2;
+  if(st.fuel<=0)e.on=0;if(e.trip&&e.T<95)e.trip=0;
+  const tg=e.on?600+(Math.max(600,mx)-600)*st.thr/100:0;e.rpm+=(tg-e.rpm)*(1-Math.exp(-dt/1.2));if(!e.on&&e.rpm<8)e.rpm=0;
+  e.pr=sg?e.rpm/r:0;e.P=e.rpm<20?0:sg?Pm*Math.min(1,(e.pr/300)**3):Pm*.03*e.rpm/600;e.F=.14*e.P*cl(1.25-e.pr/600,.5,1.2)*sg;
+  const q=e.rpm<20?0:80*e.rpm/1800+.4*e.P,th=cl((e.T-55)/25,.15,1);e.T+=(q-15*(st.pm/100*(e.rpm>20?1:.15)+.05)*th*(e.T-28))/300*dt;
+  if(e.T>112&&e.on){e.on=0;e.trip=1}
+  e.oil=e.rpm<20?0:cl(.8+3.4*e.rpm/1800-.012*Math.max(0,e.T-70),0,6);e.lph=e.rpm<20?0:8+.25*e.P;lph+=e.lph;
+  const k=.10472*vis;e.ang+=e.rpm*k*dt;e.pa+=e.pr*sg*k*dt;e.az+=((ae?st.az:0)-e.az)*(1-Math.exp(-dt/.35));
+  const a=e.az*PI/180;e.fx=e.F*Math.cos(a);e.fz=e.F*Math.sin(a);Fx+=e.fx;tau+=z*e.fx-rx*e.fz;
+  if(e.trip)al.push('Mesin '+nm+' trip karena overheat, tunggu suhu turun');else if(e.T>95)al.push('Suhu mesin '+nm+' tinggi, naikkan debit pendingin')});
+ if(sg&&st.thr>85&&mx<1700)al.push('Rasio terlalu rendah, mesin tak mampu mencapai putaran penuh');
+ if(sg&&st.thr>85&&r>6.6)al.push('Rasio terlalu tinggi, daya mesin tidak terserap penuh');
+ if(st.fuel<=0)al.push('Bahan bakar habis');if(st.aux&&st.ld>135)al.push('Beban listrik mendekati batas generator');
+ const vt=Math.sign(Fx)*Math.sqrt(Math.abs(Fx)/2.86);st.v+=(vt-st.v)*(1-Math.exp(-dt/6));
+ st.w+=(tau*.0045-st.w)*(1-Math.exp(-dt/3));st.psi+=st.w*dt;const p=st.psi*PI/180;st.x+=st.v*dt*Math.cos(p);st.z-=st.v*dt*Math.sin(p);
+ const at=st.aux?1500-.5*st.ld:0;st.ar+=(at-st.ar)*(1-Math.exp(-dt));if(!st.aux&&st.ar<8)st.ar=0;st.ag+=st.ar*.10472*vis*dt;
+ st.fuel=Math.max(0,st.fuel-(lph+(st.ar>20?8+.22*st.ld:0))/3600*60*dt);if(st.fuel<=0)st.aux=0;
+ const A=$('#al');A.textContent=[...new Set(al)].join('. ');A.style.display=al.length?'block':'none'}
+function draw(dt){const ae=st.m=='a',H=(i,v)=>$('#h_'+i).textContent=v,pp=f=>E.map(f).join(' / ');
+ E.forEach((e,i)=>{const z=i?2.2:-2.2,a=e.az*PI/180,F=Math.abs(e.F);
+  upd(e,e.ang,e.P/1600);e.fw.rotation.x=e.gi.rotation.x=e.ang;e.go.rotation.x=SH[i].rotation.x=PR[i].rotation.x=AR[i].rotation.x=-e.pa;
+  AZ[i].rotation.y=-a;AZ[i].children[1].rotation.y=e.pa;
+  e.ar.visible=F>3;if(F>3){e.ar.setDirection(V(e.fx,0,e.fz).normalize());e.ar.setLength(F/14+.8,.8,.5);e.ar.position.set(ae?-10.6:-12.3,ae?-1.9:1,z)}
+  const on=e.rpm>20,fr=[st.pm/100*(on?.35+.65*e.rpm/1800:0),on&&st.fuel>0?.25+.75*e.P/1600:0,on?.3+.7*e.rpm/1800:0];
+  e.fl.forEach((f,j)=>{const s=fr[j];f.pt.visible=s>.02;if(s>.02){f.t=(f.t+dt*s*.45)%1;for(let n=0;n<f.N;n++){const q=f.cv.getPointAt((f.t+n/f.N)%1);f.pos[n*3]=q.x;f.pos[n*3+1]=q.y;f.pos[n*3+2]=q.z}f.pt.geometry.attributes.position.needsUpdate=true}});
+  e.fl[0].m.color.setHSL(.58-.58*cl((e.T-45)/65,0,1),1,.55);e.fl[0].tm.color.copy(e.fl[0].m.color)});
+ fl.scale.y=Math.max(.001,st.fuel/8000*1.85);fl.position.y=.15+fl.scale.y/2;
+ upd(ax,st.ag,st.ar>20?.1+.9*st.ld/150:0);gn.material.emissiveIntensity=st.ar>20?.1+.9*st.ld/150:0;
+ sea.rotation.y=-st.psi*PI/180;grid.position.set(-st.x%2,3.2,-st.z%2);
+ HB.forEach(h=>{h.update();h.visible=h.o.visible});
+ LB.forEach(l=>{const p=l.v.clone().project(C),v=showLb&&p.z<1&&(!l[4]||l[4]==st.m);l.e.style.display=v?'block':'none';if(v){l.e.style.left=(p.x+1)/2*innerWidth+'px';l.e.style.top=(1-p.y)/2*innerHeight+'px'}});
+ [$('#bP'),$('#bS')].forEach((b,i)=>b.classList.toggle('on',!!E[i].on));$('#bA').classList.toggle('on',!!st.aux);
+ H('rpm',pp(e=>Math.round(e.rpm)));H('prm',pp(e=>Math.round(e.pr)));H('pw',pp(e=>Math.round(e.P)));H('tq',pp(e=>(e.rpm>20?e.P/(e.rpm*.10472):0).toFixed(1)));
+ H('th',E.reduce((a,e)=>a+e.F,0).toFixed(0));H('kn',(st.v*1.944).toFixed(1));H('hd',Math.round(((360-st.psi)%360+360)%360));
+ H('tc',pp(e=>Math.round(e.T)));H('op',pp(e=>e.oil.toFixed(1)));H('fu',Math.round(st.fuel));H('el',st.ar>20?st.ld+' kW, 400 V, '+Math.round(st.ar/30)+' Hz':'0');
+ $('#h_tc').style.color=E.some(e=>e.T>95)?'var(--wr)':''}
+let last=performance.now();
+function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;sim(dt);draw(dt);OC.update();R.render(S,C);requestAnimationFrame(loop)}
+rs();mode('k');cam('i');requestAnimationFrame(loop);
+</script></body></html>
